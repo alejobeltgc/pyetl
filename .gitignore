@@ -119,7 +119,6 @@ coverage.xml
 # AWS credentials (if used later)
 .aws/
 credentials
-config
 
 # Terraform (if used for infrastructure)
 *.tfstate
