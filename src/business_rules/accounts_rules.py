@@ -190,6 +190,7 @@ class AccountsBusinessRules:
     def _extract_numeric_value(self, text: str) -> Optional[float]:
         """
         Extract numeric value from text.
+        Colombian format: 8.990 = 8990 (thousands), 8,50 = 8.5 (decimal)
         
         Args:
             text (str): Text containing a number
@@ -198,17 +199,43 @@ class AccountsBusinessRules:
             Optional[float]: Extracted number or None
         """
         # Remove currency symbols and clean up
-        cleaned = re.sub(r'[\$,]', '', text)
+        cleaned = text.strip().replace('$', '').strip()
         
-        # Find number patterns
-        number_pattern = r'(\d+(?:[.,]\d+)?)'
+        # Handle special cases
+        if cleaned.lower() in ['desde 0', '0']:
+            return 0.0
+        
+        # Pattern to match numbers - simplified
+        number_pattern = r'(\d+(?:[.,]\d+)*)'
         match = re.search(number_pattern, cleaned)
         
         if match:
-            number_str = match.group(1).replace(',', '.')
-            try:
-                return float(number_str)
-            except ValueError:
-                return None
-        
+            number_str = match.group(1)
+            
+            # Convert Colombian format to standard format
+            if ',' in number_str:
+                if '.' in number_str:
+                    # Has both: 1.234.567,89 -> remove dots, replace comma with dot
+                    parts = number_str.split(',')
+                    integer_part = parts[0].replace('.', '')
+                    decimal_part = parts[1]
+                    result = float(f"{integer_part}.{decimal_part}")
+                else:
+                    # Only comma: 123,45 -> replace comma with dot
+                    result = float(number_str.replace(',', '.'))
+            elif '.' in number_str:
+                # Check if it's thousands separator (3 digits after dot) or decimal
+                parts = number_str.split('.')
+                if len(parts) == 2 and len(parts[1]) == 3:
+                    # Thousands separator: 8.990 -> 8990
+                    result = float(number_str.replace('.', ''))
+                else:
+                    # Decimal separator: 8.5 -> 8.5
+                    result = float(number_str)
+            else:
+                # Plain integer: 123 -> 123
+                result = float(number_str)
+            
+            return result
+            
         return None
