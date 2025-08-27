@@ -7,23 +7,27 @@ ACCOUNTS_CONFIG = {
     "document_type": "rates_and_fees",
     
     # Field mappings
-    "tax_field": "Aplica Iva",
-    "frequency_field": "Frecuencia",
-    "description_field": "Descripción",
-    "disclaimer_field": "Disclaimer",
+    "tax_field": "APLICA IVA",
+    "frequency_field": "FRECUENCIA",
+    "description_field": "DESCRIPCIÓN",
+    "disclaimer_field": "DISCLAIMER",
     
     # Plan types mapping
     "plan_types": {
-        "Tarifa Plan G-Zero para cuenta movil": "g_zero",
-        "Tarifa Plan Puls para cuenta movil": "puls", 
-        "Tarifa Plan Premier para cuenta movil": "premier"
+        "PLAN G - ZERO PARA CUENTA MOVIL": "g_zero",
+        "PLAN PLUS PARA CUENTA MOVIL": "puls", 
+        "PLAN PREMIER PARA CUENTA MÓVIL": "premier",
+        "VALOR (Sin IVA)": "standard_rate"
     },
     
     # Frequency mapping
     "frequency_mapping": {
         "Mensual": "monthly",
+        "Por transacción": "per_transaction",
         "Por transaccion": "per_transaction",
         "Unica vez": "one_time",
+        "Unica Vez": "one_time",
+        "A demanda": "on_demand",
         "Anual": "yearly"
     },
     
@@ -31,6 +35,7 @@ ACCOUNTS_CONFIG = {
     "tax_mapping": {
         "Si": True,
         "No": False,
+        "No Aplica": False,
         "No aplica": False
     },
     

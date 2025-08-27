@@ -34,6 +34,6 @@ VALIDATION_RULES = {
     "required_fields": ["service_id", "description", "frequency"],
     "rate_fields": ["rates", "rate"],  # Either rates (mobile) or rate (traditional)
     "max_description_length": 200,
-    "valid_frequencies": ["monthly", "per_transaction", "one_time", "yearly", "unknown"],
+    "valid_frequencies": ["monthly", "per_transaction", "one_time", "yearly", "on_demand", "unknown"],
     "valid_table_types": ["mobile_plans", "transfers", "withdrawals", "traditional_services"]
 }

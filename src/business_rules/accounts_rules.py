@@ -35,22 +35,31 @@ class AccountsBusinessRules:
         """
         table_name = table.get('table_name', '').lower()
         
-        # Check for mobile plans table
-        plan_columns = [self.config['plan_types'].get(col, col) for col in table.get('columns', [])]
-        if all(plan in plan_columns for plan in ['g_zero', 'puls', 'premier']):
+        # Get column names from header_row
+        header_row = table.get('header_row', {})
+        column_names = list(header_row.values()) if header_row else []
+        
+        # Check for mobile plans table - debe tener las 3 columnas de planes
+        plan_columns = [self.config['plan_types'].get(col, col) for col in column_names]
+        mobile_plan_keys = ['g_zero', 'puls', 'premier']
+        if all(plan in plan_columns for plan in mobile_plan_keys):
             return 'mobile_plans'
+        
+        # Check for traditional services table - tiene VALOR (Sin IVA)
+        if 'VALOR (Sin IVA)' in column_names:
+            return 'traditional_services'
         
         # Check data content for classification
         sample_descriptions = []
         if 'data' in table and table['data']:
             sample_descriptions = [
                 row.get(self.config['description_field'], '').lower() 
-                for row in table['data'][:3]  # Check first 3 rows
+                for row in table['data'][:3] if row.get(self.config['description_field'])  # Check first 3 rows
             ]
         
         # Classify based on patterns
         for table_type, classification in self.config['table_classification'].items():
-            if table_type == 'mobile_plans':
+            if table_type in ['mobile_plans', 'traditional_services']:
                 continue  # Already checked above
                 
             patterns = classification.get('patterns', [])
@@ -106,7 +115,9 @@ class AccountsBusinessRules:
         if not frequency:
             return 'unknown'
         
-        return self.config['frequency_mapping'].get(frequency, frequency.lower())
+        # Clean and normalize the frequency value
+        cleaned_frequency = frequency.strip() if isinstance(frequency, str) else str(frequency)
+        return self.config['frequency_mapping'].get(cleaned_frequency, cleaned_frequency.lower())
     
     def normalize_tax_application(self, tax_value: str) -> bool:
         """

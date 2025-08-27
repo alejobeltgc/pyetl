@@ -62,9 +62,10 @@ class Transformer:
     def _transform_standard_plans(self, table: dict, table_type: str) -> dict:
         """Transform standard plans table (mobile, transfers, withdrawals)."""
         services = []
+        description_field = self.business_rules.config['description_field']
         
         for row in table.get('data', []):
-            description = row.get('Descripción', '').strip()
+            description = row.get(description_field, '').strip()
             if not description:
                 continue
             
@@ -78,9 +79,10 @@ class Transformer:
     def _transform_traditional_services(self, table: dict, table_type: str) -> dict:
         """Transform traditional services table."""
         services = []
+        description_field = self.business_rules.config['description_field']
         
         for row in table.get('data', []):
-            description = row.get('Descripción', '').strip()
+            description = row.get(description_field, '').strip()
             if not description:
                 continue
             
@@ -95,11 +97,16 @@ class Transformer:
         """Create a standardized service record."""
         service_id = self.business_rules.generate_service_id(description)
         
+        # Get field names from config
+        tax_field = self.business_rules.config['tax_field']
+        frequency_field = self.business_rules.config['frequency_field']
+        disclaimer_field = self.business_rules.config['disclaimer_field']
+        
         service = {
             "service_id": service_id,
             "description": description,
-            "applies_tax": self.business_rules.normalize_tax_application(row.get('Aplica Iva')),
-            "frequency": self.business_rules.normalize_frequency(row.get('Frecuencia'))
+            "applies_tax": self.business_rules.normalize_tax_application(row.get(tax_field)),
+            "frequency": self.business_rules.normalize_frequency(row.get(frequency_field))
         }
         
         # Add rates or rate based on type
@@ -113,11 +120,11 @@ class Transformer:
             service["rates"] = rates
         else:
             # Single rate (traditional services)
-            value = row.get('Valor sin iva')
+            value = row.get('VALOR (Sin IVA)')  # Campo específico para servicios tradicionales
             service["rate"] = self.business_rules.parse_rate_value(value)
         
         # Add disclaimer if present
-        disclaimer = row.get('Disclaimer')
+        disclaimer = row.get(disclaimer_field)
         if disclaimer and not (isinstance(disclaimer, float) and str(disclaimer).lower() == 'nan') and isinstance(disclaimer, str) and disclaimer.strip():
             service["disclaimer"] = disclaimer.strip()
         
