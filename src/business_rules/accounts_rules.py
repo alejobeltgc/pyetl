@@ -2,17 +2,17 @@
 Business rules for accounts data transformation.
 """
 
-from typing import Dict, List, Any, Optional
 import re
-import pandas as pd
-
-# Import config directly 
 import sys
 from pathlib import Path
-config_path = Path(__file__).parent.parent / "config"
-sys.path.insert(0, str(config_path))
+from typing import Any, Dict, Optional
 
-from accounts_config import ACCOUNTS_CONFIG
+import pandas as pd
+
+# Import the accounts config directly
+_config_path = Path(__file__).parent.parent / "config"
+sys.path.insert(0, str(_config_path))
+from accounts_config import ACCOUNTS_CONFIG  # noqa: E402
 
 
 class AccountsBusinessRules:

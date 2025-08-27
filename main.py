@@ -2,8 +2,7 @@
 """
 Main ETL Pipeline for Financial Rates and Fees Processing
 
-This             self._save_json(validation_report, config.OUTPUT_FILES["validation_report"])
-            print(f"   ✅ Validation report saved to: {config.OUTPUT_FILES['validation_report'].name}")ript orchestrates the complete ETL process:
+This script orchestrates the complete ETL process:
 1. Extract tables from Excel files
 2. Transform data according to business rules
 3. Validate the output
@@ -13,22 +12,21 @@ This             self._save_json(validation_report, config.OUTPUT_FILES["validat
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
-# Import global config from root
-import sys
-config_path = Path(__file__).parent / "config.py"
-sys.path.insert(0, str(Path(__file__).parent))
-import config
+# Add project root and src directory to Python path
+ROOT = Path(__file__).parent
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
+if str(ROOT / 'src') not in sys.path:
+    sys.path.append(str(ROOT / 'src'))
 
-# Add src to Python path for business logic components  
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-from excel_parser import ExcelParser
-from business_rules.accounts_rules import AccountsBusinessRules
-from transformer import Transformer
-from validator import Validator
-from datetime import timezone
+import config  # noqa: E402
+from business_rules.accounts_rules import AccountsBusinessRules  # noqa: E402
+from excel_parser import ExcelParser  # noqa: E402
+from transformer import Transformer  # noqa: E402
+from validator import Validator  # noqa: E402
+
 
 
 class ETLPipeline:
