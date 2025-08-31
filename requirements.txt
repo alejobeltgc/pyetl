@@ -1,3 +1,8 @@
-pandas>=2.0.0
+# Core dependencies for PyETL
 openpyxl>=3.1.0
+
+# AWS dependencies (available in Lambda runtime, but needed for local development)
+boto3>=1.34.0
+
+# Development and testing
 pytest>=7.0.0

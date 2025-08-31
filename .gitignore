@@ -77,15 +77,41 @@ output/
 *.json
 *.csv
 
+# Legacy output files
+raw_data/
+processed_data/
+validation_reports/
+
+# Strategy pattern temporary files
+extraction_cache/
+strategy_logs/
+
 # Data files (potentially sensitive)
 data/*.xlsx
 data/*.xls
 data/*.csv
+data/accounts-*.xlsx
+data/loans-*.xlsx
+data/credit-*.xlsx
 !data/.gitkeep
+!data/sample-*.xlsx
+
+# Sample data for testing (keep small anonymized samples)
+# data/sample-accounts.xlsx
+# data/sample-loans.xlsx
 
 # Logs
 *.log
 logs/
+
+# AWS CloudWatch logs (if downloaded locally)
+cloudwatch_logs/
+lambda_logs/
+*.awslogs
+
+# Monitoring and metrics
+metrics/
+performance_logs/
 
 # Test files
 .pytest_cache/
@@ -116,9 +142,31 @@ coverage.xml
 *.backup
 *.orig
 
+# Development and testing temporary files
+test_outputs/
+local_development/
+*.local.json
+*.debug.log
+integration_test_data/
+
+# Hexagonal architecture temp files
+domain_temp/
+infrastructure_temp/
+
 # AWS credentials (if used later)
 .aws/
 credentials
+
+# Serverless Framework
+.serverless/
+.serverless_plugins/
+serverless-*.log
+
+# AWS Lambda deployment packages
+*.zip
+
+# CloudFormation templates (generated)
+.serverless_temp/
 
 # Terraform (if used for infrastructure)
 *.tfstate
@@ -135,3 +183,13 @@ node_modules/
 .npm
 .yarn/
 yarn-error.log
+package-lock.json
+
+# Lambda layer artifacts
+layers/
+layer_*.zip
+
+# CDK (if used later)
+cdk.out/
+cdk.context.json
+.serverless/
