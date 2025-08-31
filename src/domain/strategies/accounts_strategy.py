@@ -30,13 +30,14 @@ class AccountsExtractionStrategy(ExtractionStrategy):
         
         # Header patterns for different data types
         self.description_patterns = [
-            r'descripcion', r'concepto', r'servicio', r'detalle',
+            r'descripci[oó]n', r'concepto', r'servicio', r'detalle',
             r'description', r'concept', r'service', r'detail'
         ]
         
         self.plan_patterns = [
             r'plan.*zero', r'g.*zero', r'puls', r'premier', r'tradicional',
-            r'movil', r'app', r'digital'
+            r'movil', r'app', r'digital', r'plan.*g', r'plan.*plus',
+            r'valor', r'monto', r'precio', r'amount', r'cost'
         ]
     
     @property
