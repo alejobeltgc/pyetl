@@ -1,0 +1,2 @@
+# Dependencias ligeras para Lambda
+openpyxl>=3.1.0

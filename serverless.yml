@@ -1,0 +1,155 @@
+service: pyetl-rates
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  timeout: 900
+  memorySize: 1024
+  
+  environment:
+    DYNAMODB_TABLE: ${self:service}-rates-${self:provider.stage}
+    S3_BUCKET: pyetl-rates-input-demo-2025
+    
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+      Resource:
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}/index/*"
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:GetObjectVersion
+      Resource:
+        - "arn:aws:s3:::pyetl-rates-input-demo-2025/*"
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+
+functions:
+  processRatesFile:
+    handler: src/lambda_handler.process_rates_file
+    description: Procesa archivos Excel de rates y guarda en DynamoDB
+    timeout: 900
+    memorySize: 1024
+    events:
+      - s3:
+          bucket: pyetl-rates-input-demo-2025
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .xlsx
+          existing: true
+
+  healthCheck:
+    handler: src/lambda_handler.health_check
+    description: Health check endpoint
+    timeout: 30
+    memorySize: 128
+    events:
+      - http:
+          path: health
+          method: get
+          cors: true
+
+  getDocument:
+    handler: src/api_handler.get_document
+    description: Obtiene un documento específico por ID
+    timeout: 30
+    memorySize: 256
+    events:
+      - http:
+          path: documents/{document_id}
+          method: get
+          cors: true
+
+  listDocuments:
+    handler: src/api_handler.list_documents
+    description: Lista todos los documentos procesados
+    timeout: 30
+    memorySize: 256
+    events:
+      - http:
+          path: documents
+          method: get
+          cors: true
+
+  getServicesByBusinessLine:
+    handler: src/api_handler.get_services_by_business_line
+    description: Obtiene servicios por línea de negocio
+    timeout: 30
+    memorySize: 256
+    events:
+      - http:
+          path: business-lines/{business_line}/services
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    RatesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: business_line
+            AttributeType: S
+          - AttributeName: last_updated
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: business-line-index
+            KeySchema:
+              - AttributeName: business_line
+                KeyType: HASH
+              - AttributeName: last_updated
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+  Outputs:
+    DynamoDBTableName:
+      Description: "Nombre de la tabla DynamoDB"
+      Value: ${self:provider.environment.DYNAMODB_TABLE}
+      Export:
+        Name: ${self:service}-${self:provider.stage}-dynamodb-table
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    slim: true
+    strip: false
+    layer: false
+    fileName: requirements-lambda.txt
+    pipCmdExtraArgs:
+      - --no-cache-dir
