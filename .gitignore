@@ -192,3 +192,4 @@ layer_*.zip
 # CDK (if used later)
 cdk.out/
 cdk.context.json
+.serverless/
