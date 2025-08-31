@@ -68,7 +68,7 @@ class Rate:
         """Convert rate to dictionary for serialization."""
         result = {
             "type": self.type.value,
-            "value": float(self.value)
+            "value": str(self.value)
         }
         
         if self.currency:
@@ -76,6 +76,20 @@ class Rate:
         
         if self.type == RateType.CONDITIONAL:
             result["included_free"] = self.included_free
-            result["additional_cost"] = float(self.additional_cost)
+            result["additional_cost"] = str(self.additional_cost)
         
         return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Rate':
+        """Create Rate from dictionary (for deserialization)."""
+        rate_type = RateType(data["type"])
+        value = Decimal(data["value"])
+        currency = data.get("currency")
+        
+        if rate_type == RateType.CONDITIONAL:
+            included_free = data["included_free"]
+            additional_cost = Decimal(data["additional_cost"])
+            return cls(rate_type, value, currency, included_free, additional_cost)
+        else:
+            return cls(rate_type, value, currency)

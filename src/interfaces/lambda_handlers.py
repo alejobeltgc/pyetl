@@ -14,6 +14,9 @@ from ..domain.services import ExcelProcessorService, DataValidatorService
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Constants
+CONTENT_TYPE_JSON = 'application/json'
+
 # Environment variables
 DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE')
 S3_BUCKET = os.environ.get('S3_BUCKET')
@@ -45,7 +48,30 @@ def _get_dependencies():
     return process_document_use_case, query_documents_use_case
 
 
-async def process_rates_file(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def process_rates_file(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    AWS Lambda handler for processing Excel files uploaded to S3.
+    
+    Args:
+        event: S3 event containing file information
+        context: Lambda context object
+        
+    Returns:
+        HTTP response with processing results
+    """
+    import asyncio
+    
+    # Use asyncio to run the async function
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        return loop.run_until_complete(_process_rates_file_async(event, context))
+    finally:
+        loop.close()
+
+
+async def _process_rates_file_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda handler for processing Excel files from S3.
     
@@ -108,7 +134,20 @@ async def process_rates_file(event: Dict[str, Any], context: Any) -> Dict[str, A
         }
 
 
-async def get_documents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def get_documents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """API handler to list all documents."""
+    import asyncio
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        return loop.run_until_complete(_get_documents_async(event, context))
+    finally:
+        loop.close()
+
+
+async def _get_documents_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """API handler to list documents."""
     try:
         _, query_use_case = _get_dependencies()
@@ -148,7 +187,20 @@ async def get_documents(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
 
-async def get_document_by_id(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def get_document_by_id(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """API handler to get a specific document."""
+    import asyncio
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        return loop.run_until_complete(_get_document_by_id_async(event, context))
+    finally:
+        loop.close()
+
+
+async def _get_document_by_id_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """API handler to get a specific document."""
     try:
         _, query_use_case = _get_dependencies()
@@ -181,7 +233,20 @@ async def get_document_by_id(event: Dict[str, Any], context: Any) -> Dict[str, A
         }
 
 
-async def get_services_by_business_line(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def get_services_by_business_line(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """API handler to get services by business line."""
+    import asyncio
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        return loop.run_until_complete(_get_services_by_business_line_async(event, context))
+    finally:
+        loop.close()
+
+
+async def _get_services_by_business_line_async(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """API handler to get services by business line."""
     try:
         _, query_use_case = _get_dependencies()
