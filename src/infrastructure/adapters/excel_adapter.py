@@ -1,9 +1,7 @@
-"""Excel processing adapter using openpyxl."""
+"""Excel processing adapter using openpyxl with strategy pattern."""
 
 import logging
 from typing import BinaryIO, List, Dict, Any, Optional
-from decimal import Decimal
-import re
 
 try:
     from openpyxl import load_workbook
@@ -12,28 +10,29 @@ except ImportError:
     EXCEL_PROCESSING_AVAILABLE = False
 
 from ...domain.entities import Document, FinancialService
-from ...domain.services import ExcelProcessorService
+from ...domain.strategies import ExtractionStrategyFactory
 
 logger = logging.getLogger(__name__)
 
 
 class OpenpyxlExcelAdapter:
     """
-    Openpyxl implementation for Excel processing.
+    Openpyxl implementation for Excel processing using Strategy pattern.
     
-    Concrete implementation that handles Excel parsing using openpyxl library.
+    Uses business-specific extraction strategies to handle different
+    types of Excel files based on their content and structure.
     """
     
     def __init__(self):
         if not EXCEL_PROCESSING_AVAILABLE:
             raise ExcelAdapterError("openpyxl is not available")
         
-        self.excel_processor = ExcelProcessorService()
+        self.strategy_factory = ExtractionStrategyFactory()
     
     async def process_excel_file(self, file_content: BinaryIO, filename: str, 
                                 document_id: str) -> Document:
         """
-        Process Excel file content and extract financial services.
+        Process Excel file content using appropriate strategy.
         
         Args:
             file_content: Excel file content
@@ -46,9 +45,15 @@ class OpenpyxlExcelAdapter:
         try:
             # Load workbook
             workbook = load_workbook(file_content, data_only=True)
+            sheet_names = workbook.sheetnames
             
-            # Determine business line from sheets
-            business_line = self._determine_business_line(workbook.sheetnames)
+            logger.info(f"📋 Found {len(sheet_names)} sheets: {sheet_names}")
+            
+            # Determine extraction strategy
+            strategy = self.strategy_factory.get_strategy_for_file(sheet_names, filename)
+            business_line = strategy.business_line
+            
+            logger.info(f"🎯 Using {strategy.__class__.__name__} for business line: {business_line}")
             
             # Create document
             document = Document(
@@ -59,107 +64,81 @@ class OpenpyxlExcelAdapter:
             
             # Add processing metadata
             document.processing_metadata = {
-                'sheets_found': workbook.sheetnames,
-                'processing_method': 'openpyxl',
-                'excel_format': 'xlsx'
+                'sheets_found': sheet_names,
+                'processing_method': 'openpyxl_with_strategy',
+                'excel_format': 'xlsx',
+                'strategy_used': strategy.__class__.__name__,
+                'strategy_metadata': strategy.get_strategy_metadata()
             }
             
-            # Process each relevant sheet
-            relevant_sheets = self._get_relevant_sheets(workbook.sheetnames)
-            logger.info(f"📋 Found {len(workbook.sheetnames)} sheets: {workbook.sheetnames}")
-            logger.info(f"🎯 Processing {len(relevant_sheets)} relevant sheets: {relevant_sheets}")
+            # Process sheets using strategy
+            processed_sheets = 0
+            for sheet_name in sheet_names:
+                if strategy.should_process_sheet(sheet_name):
+                    try:
+                        sheet = workbook[sheet_name]
+                        services = await self._extract_services_using_strategy(
+                            sheet, sheet_name, strategy, document_id
+                        )
+                        
+                        for service in services:
+                            document.add_service(service)
+                        
+                        logger.info(f"✅ Extracted {len(services)} services from {sheet_name}")
+                        processed_sheets += 1
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Error processing sheet {sheet_name}: {str(e)}")
+                        document.processing_metadata[f'error_{sheet_name}'] = str(e)
+                else:
+                    logger.info(f"⏭️ Skipping sheet {sheet_name} (not relevant for {business_line})")
             
-            for sheet_name in relevant_sheets:
-                try:
-                    sheet = workbook[sheet_name]
-                    services = await self._extract_services_from_sheet(
-                        sheet, sheet_name, document_id
-                    )
-                    
-                    for service in services:
-                        document.add_service(service)
-                    
-                    logger.info(f"✅ Extracted {len(services)} services from {sheet_name}")
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error processing sheet {sheet_name}: {str(e)}")
-                    document.processing_metadata[f'error_{sheet_name}'] = str(e)
+            # Validate extracted data using strategy
+            validation_errors = strategy.validate_extracted_data(document.services)
+            if validation_errors:
+                document.processing_metadata['strategy_validation_errors'] = validation_errors
+                logger.warning(f"⚠️ Strategy validation found {len(validation_errors)} issues")
             
-            logger.info(f"📊 Total services extracted: {document.get_service_count()}")
+            logger.info(f"📊 Total services extracted: {document.get_service_count()} from {processed_sheets} sheets")
             
             return document
             
         except Exception as e:
             raise ExcelAdapterError(f"Failed to process Excel file {filename}: {str(e)}") from e
     
-    def _determine_business_line(self, sheet_names: List[str]) -> str:
-        """Determine the primary business line from sheet names."""
-        # Count business line indicators
-        business_line_counts = {
-            'accounts': 0,
-            'loans': 0,
-            'other': 0
-        }
-        
-        for sheet_name in sheet_names:
-            sheet_lower = sheet_name.lower()
-            if any(term in sheet_lower for term in ['tarifa', 'limite', 'cuenta']):
-                business_line_counts['accounts'] += 1
-            elif any(term in sheet_lower for term in ['tasa', 'credito', 'prestamo']):
-                business_line_counts['loans'] += 1
-            else:
-                business_line_counts['other'] += 1
-        
-        # Return the most common business line
-        return max(business_line_counts, key=business_line_counts.get)
-    
-    def _get_relevant_sheets(self, sheet_names: List[str]) -> List[str]:
-        """Filter to only relevant sheets for processing."""
-        relevant_patterns = [
-            r'tarifa', r'limite', r'tasa', r'rate', r'fee', r'cost'
-        ]
-        
-        relevant_sheets = []
-        for sheet_name in sheet_names:
-            sheet_lower = sheet_name.lower()
-            if any(re.search(pattern, sheet_lower) for pattern in relevant_patterns):
-                relevant_sheets.append(sheet_name)
-        
-        return relevant_sheets
-    
-    async def _extract_services_from_sheet(self, sheet, sheet_name: str, 
-                                          document_id: str) -> List[FinancialService]:
-        """Extract financial services from a single sheet."""
+    async def _extract_services_using_strategy(self, sheet, sheet_name: str, 
+                                              strategy, document_id: str) -> List[FinancialService]:
+        """Extract services from sheet using the provided strategy."""
         services = []
         
-        # Get sheet dimensions
-        max_row = sheet.max_row
-        max_col = sheet.max_column
+        # Convert sheet to 2D array
+        sheet_data = self._sheet_to_array(sheet)
         
-        if max_row is None or max_row == 0:
+        if not sheet_data:
             logger.warning(f"Sheet {sheet_name} appears to be empty")
             return services
         
-        logger.info(f"Processing sheet {sheet_name}: {max_row} rows × {max_col} columns")
+        logger.info(f"Processing sheet {sheet_name}: {len(sheet_data)} rows")
         
-        # Find header row
-        header_row_idx = self._find_header_row(sheet, max_row)
-        if header_row_idx is None:
-            logger.warning(f"No header row found in sheet {sheet_name}")
+        # Find data start row using strategy
+        data_start_row = strategy.find_data_start_row(sheet_data, sheet_name)
+        if data_start_row is None:
+            logger.warning(f"No data start row found in sheet {sheet_name}")
             return services
         
-        # Get headers
-        headers = self._extract_headers(sheet, header_row_idx, max_col)
+        # Extract headers using strategy
+        headers = strategy.extract_headers(sheet_data, data_start_row)
         logger.info(f"Headers found: {headers}")
         
-        # Extract data rows
-        for row_idx in range(header_row_idx + 1, max_row + 1):
+        # Extract services from data rows
+        for row_idx in range(data_start_row, len(sheet_data)):
             try:
-                service = self._extract_service_from_row(
-                    sheet, row_idx, headers, sheet_name, document_id, row_idx - header_row_idx
+                row_data = sheet_data[row_idx]
+                service = strategy.extract_service_from_row(
+                    row_data, headers, sheet_name, row_idx, document_id
                 )
                 
-                if service and service.description.strip():
+                if service:
                     services.append(service)
                     
             except Exception as e:
@@ -167,115 +146,21 @@ class OpenpyxlExcelAdapter:
         
         return services
     
-    def _find_header_row(self, sheet, max_row: int) -> Optional[int]:
-        """Find the row that contains column headers."""
-        header_indicators = [
-            'servicio', 'descripcion', 'concepto', 'plan', 'tarifa', 'limite', 'tasa',
-            'service', 'description', 'concept', 'rate', 'fee', 'limit'
-        ]
+    def _sheet_to_array(self, sheet) -> List[List[Any]]:
+        """Convert openpyxl sheet to 2D array."""
+        data = []
         
-        for row_idx in range(1, min(10, max_row + 1)):  # Check first 10 rows
-            row_values = []
-            for col_idx in range(1, min(10, sheet.max_column + 1)):  # Check first 10 columns
+        max_row = sheet.max_row or 0
+        max_col = sheet.max_column or 0
+        
+        for row_idx in range(1, max_row + 1):
+            row_data = []
+            for col_idx in range(1, max_col + 1):
                 cell_value = sheet.cell(row=row_idx, column=col_idx).value
-                if cell_value:
-                    row_values.append(str(cell_value).lower().strip())
-            
-            # Check if this row contains header indicators
-            header_count = sum(1 for header in header_indicators 
-                              if any(header in val for val in row_values))
-            
-            if header_count >= 1:  # At least one header indicator
-                return row_idx
+                row_data.append(cell_value)
+            data.append(row_data)
         
-        return 1  # Default to first row
-    
-    def _extract_headers(self, sheet, header_row_idx: int, max_col: int) -> List[str]:
-        """Extract column headers from the header row."""
-        headers = []
-        for col_idx in range(1, max_col + 1):
-            cell_value = sheet.cell(row=header_row_idx, column=col_idx).value
-            header = str(cell_value).strip() if cell_value else f"column_{col_idx}"
-            headers.append(header)
-        
-        return headers
-    
-    def _extract_service_from_row(self, sheet, row_idx: int, headers: List[str], 
-                                 sheet_name: str, document_id: str, 
-                                 service_index: int) -> Optional[FinancialService]:
-        """Extract a financial service from a single row."""
-        # Get row data
-        row_data = {}
-        for col_idx, header in enumerate(headers, 1):
-            cell_value = sheet.cell(row=row_idx, column=col_idx).value
-            row_data[header] = cell_value
-        
-        # Find description field
-        description = self._find_description(row_data)
-        if not description or description.strip() == '':
-            return None
-        
-        # Create service
-        table_type = f"other_{sheet_name.lower()}"
-        business_line = self.excel_processor.classify_business_line(table_type)
-        service_id = self.excel_processor.generate_service_id(
-            description, table_type, service_index
-        )
-        
-        service = FinancialService(
-            service_id=service_id,
-            description=description,
-            business_line=business_line,
-            table_type=table_type,
-            document_id=document_id,
-            source_position={
-                'sheet': sheet_name,
-                'row': row_idx,
-                'header_row': headers
-            }
-        )
-        
-        # Extract rates from other columns
-        for header, value in row_data.items():
-            if header != description and value is not None:
-                # Skip empty values and description field
-                if str(value).strip() == '' or header in ['descripcion', 'servicio', 'concepto']:
-                    continue
-                
-                try:
-                    rate = self.excel_processor.create_rate_from_value(value, header)
-                    plan_name = self._normalize_plan_name(header)
-                    service.add_rate(plan_name, rate)
-                except Exception as e:
-                    logger.warning(f"Error creating rate for {header}: {str(e)}")
-        
-        return service
-    
-    def _find_description(self, row_data: Dict[str, Any]) -> Optional[str]:
-        """Find the description field in the row data."""
-        description_patterns = [
-            'descripcion', 'servicio', 'concepto', 'description', 'service', 'concept'
-        ]
-        
-        # First, try exact matches
-        for pattern in description_patterns:
-            for header, value in row_data.items():
-                if pattern.lower() in header.lower() and value:
-                    return str(value).strip()
-        
-        # Then try first non-empty value
-        for header, value in row_data.items():
-            if value and str(value).strip():
-                return str(value).strip()
-        
-        return None
-    
-    def _normalize_plan_name(self, header: str) -> str:
-        """Normalize plan/column name."""
-        # Clean and normalize header name
-        normalized = re.sub(r'[^\w\s]', ' ', header.lower())
-        normalized = re.sub(r'\s+', '_', normalized.strip())
-        return normalized
+        return data
 
 
 class ExcelAdapterError(Exception):

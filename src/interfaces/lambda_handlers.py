@@ -25,7 +25,6 @@ def _get_dependencies():
     # Infrastructure adapters
     document_repository = DynamoDBDocumentAdapter(DYNAMODB_TABLE)
     file_repository = S3FileAdapter()
-    excel_adapter = OpenpyxlExcelAdapter()
     
     # Domain services
     excel_processor = ExcelProcessorService()
